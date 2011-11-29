@@ -1,0 +1,33 @@
+<!doctype>
+<html>
+    <script src="/static/jscrap/jscrap.js" ></script>
+    <script src="/tpl" ></script>
+    <body>
+        I`m at {{url}}
+        {% if url == '/' %}
+        <script>
+        var nav = {{nav|safe}}
+        window.onload = function() {
+            var ctx = new Context({
+                "url": "/js",
+                "nav": nav,
+                "gen": true,
+            });
+            var tpl = environment.tpl['splash.html'];
+
+            document.write(tpl.root(ctx))
+        }
+        </script>
+        {% endif %}
+
+        {% if gen %}
+        generated
+        {% endif %}
+
+        <ul>
+            {% for link in nav.links %}
+            <a href="{{link.url}}">{{ link.name }}</a>
+            {% endfor %}
+        </ul>
+    </body>
+</html>

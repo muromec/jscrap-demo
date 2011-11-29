@@ -1,0 +1,6 @@
+werkzeug
+jinja2
+git+https://github.com/muromec/biribiri.chain.git#egg=biribir.chain
+git+https://github.com/muromec/jscrap.git#egg=jscrap
+.
+
