@@ -1,0 +1,4 @@
+uwsgi:
+- socket: /tmp/uwsgi/jigoku.local
+  virtualenv: /home/muromec/blog/.env/
+  module: blog.main
