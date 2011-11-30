@@ -12,8 +12,7 @@ First, look at entry point, called "application"
 """
 
 
-@Request.application
-def application(request):
+def application(environ, start_response):
     """
     Typical werkzeug app, nothing special.
 
@@ -24,8 +23,9 @@ def application(request):
 
     """
 
+    request = Request(environ, populate_request=False)
     ret = chain.run([route, response], request=request)
-    return ret['response']
+    return ret['response'](environ, start_response)
 
 @upd_ctx('url', 'mime')
 def route(request, **ctx):
