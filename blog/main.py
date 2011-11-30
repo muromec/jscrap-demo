@@ -13,28 +13,74 @@ env = Environment( loader=FileSystemLoader(
     [ f("templates") ]
 ))
 
-@upd_ctx('tpl', 'nav')
+def accept(*know_mime):
+    know_set = set(know_mime)
+    def decorator(f):
+        def wrapped(*a, **kw):
+
+            request = kw.get('request')
+            args = dict(request.args)
+            for typ in know_mime:
+                if typ in args:
+                    return f
+
+            mime = kw.get('mime') or set()
+            if mime & know_set:
+                return f
+
+        return wrapped
+    return decorator
+
+
+@upd_ctx('tpl', 'dump_fields')
 def splash(**ctx):
-    return 'splash.html', {
+    return 'splash.html', [ 'nav', 'gen', 'post_list', 'url',],None
+
+@upd_ctx('nav')
+def load_links(**ctx):
+    return {
         "links": [
-            {"url": "/plain", "name": "Plain",},
-            {"url": "/js", "name": "Generated",},
+            {"url": "/?js", "name": "Template source",},
+            {"url": "/?json", "name": "As json",},
+            {"url": "/plain", "name": "No js",},
             {"url": "/", "name": "Index"},
+            {
+                "url": "http://github.com/muromec/jscrap-demo",
+                "name": "This demo source on github",
+            },
+            {
+                "url": "http://github.com/muromec/jscrap",
+                "name": "JInja-to-js compiler source on github",
+            },
+
         ]
     }
 
-@upd_ctx('dump_fields')
-def json(**ctx):
+@upd_ctx('post_list')
+def blog_posts(**ctx):
     return [
-            'url',
+            {
+                "title": "JSCrap", 
+                "body": "Something about jinja compiler",
+                "link": "/blog/jscrap",
+            },
+            {
+                "title": "kernel",
+                "body": "Everything in kernel is kobject",
+                "link": "/blog/kernel",
+            }
     ],None
 
+@upd_ctx('gen')
+def gen_by(**ctx):
+    import jinja2
+    return "Jinja %s" % jinja2.__version__
+
+@accept('text/javascript', 'js')
 @upd_ctx('body', 'ct')
-def tpl(**ctx):
+def dump_tpl(tpl, **ctx):
     from jinja2.parser import Parser
     from jscrap.generator import JsGenerator
-
-    tpl = 'splash.html'
 
     source,_,_ = env.loader.get_source(env, tpl)
     code = Parser(env, source)
@@ -44,9 +90,7 @@ def tpl(**ctx):
     return gen.stream.getvalue(), 'text/plain'
 
 
-def render(**ctx):
-    return [render_html, render_json]
-
+@accept('text/html')
 @match(tpl=basestring)
 @upd_ctx('body')
 def render_html(tpl, **ctx):
@@ -54,6 +98,7 @@ def render_html(tpl, **ctx):
 
     return tpl_o.render(**ctx)
 
+@accept('json')
 @match(dump_fields=list)
 @upd_ctx('body', 'ct')
 def render_json(dump_fields, **ctx):
@@ -61,7 +106,7 @@ def render_json(dump_fields, **ctx):
         (field, ctx[field])
         for field in dump_fields
         if field in ctx
-    ])),'text/json'
+    ])),'text/plain'
 
 
 @upd_ctx('response')
@@ -69,9 +114,13 @@ def response(body=None, ct='text/html', **ctx):
     code = 202 if body else 404
     return Response(body or "Nani-Nani", status=code, content_type=ct)
 
-@upd_ctx('url')
+@upd_ctx('url', 'mime')
 def route(request, **ctx):
-    return request.path, handlers
+    mime_set = set([
+        mt
+        for mt,prio in request.accept_mimetypes
+    ])
+    return request.path, mime_set, handlers
 
 @match(found_view=None, body=None)
 @upd_ctx('body')
@@ -88,17 +137,26 @@ def static(url, **ctx):
 
 handlers = [
         static,
-        view('/json')(json),
-        view('/tpl')(tpl),
-        view('/')(splash),
-        view('/plain')(splash),
+        dump_tpl,
+        render_json,
+        render_html,
+        gen_by,
+
+        view("/plain")([
+            blog_posts,
+            load_links,
+            splash,
+        ]),
+        view('/')([
+            blog_posts,
+            load_links,
+            splash,
+        ]),
 ]
-
-
 
 @Request.application
 def application(request):
-    ret = chain.run([route, render, response], request=request)
+    ret = chain.run([route, response], request=request)
     return ret['response']
 
 if __name__ == '__main__':
