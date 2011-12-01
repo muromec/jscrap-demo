@@ -88,6 +88,8 @@ def accept(*know_mime):
     know_set = set(know_mime)
     def decorator(f):
         def wrapped(*a, **kw):
+            if 'body' in kw:
+                return
 
             request = kw.get('request')
             args = dict(request.args)
@@ -190,7 +192,7 @@ def dump_tpl(tpl, **ctx):
     return gen.stream.getvalue(), 'text/plain'
 
 
-@accept('text/html')
+@accept('text/html', '*/*')
 @match(tpl=basestring)
 @upd_ctx('body')
 def render_html(tpl, **ctx):
@@ -262,9 +264,9 @@ Functins called from down to up.
 """
 handlers = [
         static,
-        dump_tpl,    # one of this three should render
-        render_json, # body into something
-        render_html, # readable by browser.
+        render_html, # one of this three should render
+        dump_tpl,    # body into something
+        render_json, # readable by browser.
         gen_by,
 
         view("/plain")([
