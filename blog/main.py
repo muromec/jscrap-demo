@@ -104,6 +104,32 @@ def accept(*know_mime):
         return wrapped
     return decorator
 
+def prefix(url_prefix):
+    plen = len(url_prefix)
+    def decorator(f):
+
+        _f = f
+        if not isinstance(f, list):
+            _f = [_f]
+
+        def wrapped(*a, **kw):
+            url = kw.get('url') or ""
+            upd_ctx = kw.get('upd_ctx') or {}
+            if url[:plen] != url_prefix:
+                return
+
+            upd_ctx['url'] = url[plen:]
+
+            def restore(**kw):
+                upd_ctx = kw.get('upd_ctx') or {}
+                upd_ctx['url'] = url
+
+            return_f = _f[:]
+            return_f.insert(0, restore)
+
+            return return_f
+        return wrapped
+    return decorator
 
 @upd_ctx('tpl', 'dump_fields')
 def splash(**ctx):
@@ -115,7 +141,12 @@ def splash(**ctx):
     How this functon called? Look at handlers list.
     
     """
-    return 'splash.html', [ 'nav', 'gen', 'post_list', 'url',],None
+    return 'splash.html', [ 'nav', 'post_list', 'tpl',],None
+
+
+@upd_ctx('tpl', 'dump_fields')
+def post(**ctx):
+    return "post.html", ['nav', 'post', 'tpl'],None
 
 @upd_ctx('nav')
 def load_links(**ctx):
@@ -142,6 +173,12 @@ def load_links(**ctx):
         ]
     }
 
+@upd_ctx('nav')
+def blog_links(**ctx):
+    return {
+            "links": [],
+    }
+
 @upd_ctx('post_list')
 def blog_posts(**ctx):
     """
@@ -152,26 +189,23 @@ def blog_posts(**ctx):
             {
                 "title": "JSCrap", 
                 "body": "Something about jinja compiler",
-                "link": "/blog/jscrap",
+                "link": "/jscrap",
             },
             {
                 "title": "kernel",
                 "body": "Everything in kernel is kobject",
-                "link": "/blog/kernel",
+                "link": "/kernel",
             }
     ],None
 
-@upd_ctx('gen')
-def gen_by(**ctx):
-    """
-    Add text to footer
-    """
-    import jinja2
-    return "Jinja %s" % jinja2.__version__
+@upd_ctx('post')
+def blog_post_by_id(url, post_list, **ctx):
+    for post in post_list:
+        if post['link'] == url:
+            return post,
 
-@accept('text/javascript', 'js')
 @upd_ctx('body', 'ct')
-def dump_tpl(tpl, **ctx):
+def dump_tpl(**ctx):
     """
     Here I`m compiling template into js code
     and dumping it to browser.
@@ -184,12 +218,15 @@ def dump_tpl(tpl, **ctx):
     from jinja2.parser import Parser
     from jscrap.generator import JsGenerator
 
-    source,_,_ = env.loader.get_source(env, tpl)
-    code = Parser(env, source)
-    gen = JsGenerator(env, tpl, tpl)
-    gen.visit(code.parse())
+    ret = []
+    for tpl in env.loader.list_templates():
+        source,_,_ = env.loader.get_source(env, tpl)
+        code = Parser(env, source)
+        gen = JsGenerator(env, tpl, tpl)
+        gen.visit(code.parse())
+        ret.append(gen.stream.getvalue())
 
-    return gen.stream.getvalue(), 'text/plain'
+    return ret, 'text/plain'
 
 
 @accept('text/html', '*/*')
@@ -265,9 +302,15 @@ Functins called from down to up.
 handlers = [
         static,
         render_html, # one of this three should render
-        dump_tpl,    # body into something
+        view("/_tpl")(dump_tpl),    # body into something
         render_json, # readable by browser.
-        gen_by,
+
+        prefix("/blog")([
+            blog_post_by_id,
+            blog_posts,
+            load_links,
+            post,
+        ]),
 
         view("/plain")([
             blog_posts,

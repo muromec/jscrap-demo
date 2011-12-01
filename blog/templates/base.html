@@ -1,0 +1,75 @@
+<!doctype>
+<html>
+    <script src="/static/jscrap/jscrap.js" ></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" /></script>
+    <script src="/_tpl" ></script>
+    <body>
+        {% block header %}
+            I`m really at {{url}}
+        {% endblock %}
+
+        {% block nav %}
+        {% if nav.links %}
+        <h2>Links</h2>
+        <ul>
+            {% for link in nav.links %}
+            <li>
+                <a href="{{link.url}}">{{ link.name }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endblock %}
+
+        <div id="content">
+        {% block content %}
+        {% endblock %}
+        </div>
+
+        <script>
+            var back = [];
+            var block = function(ctx, tpl, name) {
+                var buf = [];
+                tpl.blocks[name](ctx, buf);
+                return buf.join("");
+            }
+            
+            var got_json = function(data, title, url) {
+                var ctx = new Context(data);
+                var tpl = environment.tpl[data.tpl];
+                back.push(document.location.toString())
+
+                history.pushState( {}, title, url)
+                $("#content").html(block(ctx, tpl, "content"));
+                catch_links()
+            }
+
+            var replace = function(url, title){
+                var json_url = url + "?json";
+                $.ajax({
+                    url: json_url,
+                    success: function(data) {
+                        got_json(data, title, url)
+                    },
+                    dataType: "json",
+                })
+            }
+            var catch_links = function(){
+                $("h1 a").click(function(e) {
+                    e.preventDefault();
+                    var url = $(this).attr("href");
+                    var title = $(this).text();
+                    replace(url, title)
+                })
+            }
+            $(document).ready(catch_links)
+            $(window).bind("popstate", function(e, data) {
+                if(!back.length) return;
+
+                var url = back.pop();
+
+                replace(url);
+            })
+        </script>
+    </body>
+</html>
