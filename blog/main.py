@@ -1,6 +1,6 @@
 import os
 from werkzeug.wrappers import Request, Response
-from simplejson import dumps
+from json import dumps
 from biribiri import chain
 from biribiri.chain.utils import upd_ctx, view, match
 from jinja2 import Environment, FileSystemLoader
